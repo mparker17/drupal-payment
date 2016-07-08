@@ -4,6 +4,8 @@ namespace Drupal\Tests\payment\Unit\Plugin\views\filter;
 
 use Drupal\payment\Plugin\Payment\Method\PaymentMethodManagerInterface;
 use Drupal\payment\Plugin\views\filter\PaymentMethod;
+use Drupal\plugin\PluginType\PluginTypeInterface;
+use Drupal\plugin\PluginType\PluginTypeManagerInterface;
 use Drupal\Tests\UnitTestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -22,11 +24,11 @@ class PaymentMethodTest extends UnitTestCase {
   protected $paymentMethodManager;
 
   /**
-   * The string translator.
+   * The payment method plugin type.
    *
-   * @var \Drupal\Core\StringTranslation\TranslationInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\plugin\PluginType\PluginTypeInterface|\Prophecy\Prophecy\ObjectProphecy
    */
-  protected $stringTranslation;
+  protected $paymentMethodPluginType;
 
   /**
    * The class under test.
@@ -41,12 +43,13 @@ class PaymentMethodTest extends UnitTestCase {
   public function setUp() {
     $this->paymentMethodManager = $this->getMock(PaymentMethodManagerInterface::class);
 
-    $this->stringTranslation = $this->getStringTranslationStub();
+    $this->paymentMethodPluginType = $this->prophesize(PluginTypeInterface::class);
+    $this->paymentMethodPluginType->getPluginManager()->willReturn($this->paymentMethodManager);
 
     $configuration = [];
     $plugin_id = $this->randomMachineName();
     $plugin_definition = [];
-    $this->sut = new PaymentMethod($configuration, $plugin_id, $plugin_definition, $this->stringTranslation, $this->paymentMethodManager);
+    $this->sut = new PaymentMethod($configuration, $plugin_id, $plugin_definition, $this->paymentMethodPluginType->reveal());
   }
 
   /**
@@ -54,56 +57,16 @@ class PaymentMethodTest extends UnitTestCase {
    * @covers ::__construct
    */
   function testCreate() {
-    $container = $this->getMock(ContainerInterface::class);
-    $map = array(
-      array('plugin.manager.payment.method', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->paymentMethodManager),
-      array('string_translation', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->stringTranslation),
-    );
-    $container->expects($this->any())
-      ->method('get')
-      ->willReturnMap($map);
+    $plugin_type_manager = $this->prophesize(PluginTypeManagerInterface::class);
+    $plugin_type_manager->getPluginType('payment_method')->willReturn($this->paymentMethodPluginType);
+    $container = $this->prophesize(ContainerInterface::class);
+    $container->get('plugin.plugin_type_manager')->willReturn($plugin_type_manager->reveal());
 
     $configuration = [];
     $plugin_id = $this->randomMachineName();
     $plugin_definition = [];
-    $sut = PaymentMethod::create($container, $configuration, $plugin_id, $plugin_definition);
+    $sut = PaymentMethod::create($container->reveal(), $configuration, $plugin_id, $plugin_definition);
     $this->assertInstanceOf(PaymentMethod::class, $sut);
-  }
-
-  /**
-   * @covers ::getValueOptions
-   */
-  public function testGetValueOptions() {
-    $plugin_id_a = $this->randomMachineName();
-    $plugin_label_a = $this->randomMachineName();
-    $plugin_id_b = $this->randomMachineName();
-    $plugin_label_b = $this->randomMachineName();
-    $plugin_id_c = $this->randomMachineName();
-    $plugin_label_c = $this->randomMachineName();
-
-    $plugin_definitions = [
-      $plugin_id_a => [
-        'label' => $plugin_label_a,
-      ],
-      $plugin_id_b => [
-        'label' => $plugin_label_b,
-      ],
-      $plugin_id_c => [
-        'label' => $plugin_label_c,
-      ],
-    ];
-
-    $this->paymentMethodManager->expects($this->atLeastOnce())
-      ->method('getDefinitions')
-      ->willReturn($plugin_definitions);
-
-    $expected_options = [
-      $plugin_id_a => $plugin_label_a,
-      $plugin_id_b => $plugin_label_b,
-      $plugin_id_c => $plugin_label_c,
-    ];
-
-    $this->assertSame($expected_options, $this->sut->getValueOptions());
   }
 
 }

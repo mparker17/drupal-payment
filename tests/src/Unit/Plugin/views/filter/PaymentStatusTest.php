@@ -4,6 +4,8 @@ namespace Drupal\Tests\payment\Unit\Plugin\views\filter;
 
 use Drupal\payment\Plugin\Payment\Status\PaymentStatusManagerInterface;
 use Drupal\payment\Plugin\views\filter\PaymentStatus;
+use Drupal\plugin\PluginType\PluginTypeInterface;
+use Drupal\plugin\PluginType\PluginTypeManagerInterface;
 use Drupal\Tests\UnitTestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -22,11 +24,11 @@ class PaymentStatusTest extends UnitTestCase {
   protected $paymentStatusManager;
 
   /**
-   * The string translator.
+   * The payment status plugin type.
    *
-   * @var \Drupal\Core\StringTranslation\TranslationInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\plugin\PluginType\PluginTypeInterface|\Prophecy\Prophecy\ObjectProphecy
    */
-  protected $stringTranslation;
+  protected $paymentStatusPluginType;
 
   /**
    * The class under test.
@@ -41,12 +43,13 @@ class PaymentStatusTest extends UnitTestCase {
   public function setUp() {
     $this->paymentStatusManager = $this->getMock(PaymentStatusManagerInterface::class);
 
-    $this->stringTranslation = $this->getStringTranslationStub();
+    $this->paymentStatusPluginType= $this->prophesize(PluginTypeInterface::class);
+    $this->paymentStatusPluginType->getPluginManager()->willReturn($this->paymentStatusManager);
 
     $configuration = [];
     $plugin_id = $this->randomMachineName();
     $plugin_definition = [];
-    $this->sut = new PaymentStatus($configuration, $plugin_id, $plugin_definition, $this->stringTranslation, $this->paymentStatusManager);
+    $this->sut = new PaymentStatus($configuration, $plugin_id, $plugin_definition, $this->paymentStatusPluginType->reveal());
   }
 
   /**
@@ -54,56 +57,16 @@ class PaymentStatusTest extends UnitTestCase {
    * @covers ::__construct
    */
   function testCreate() {
-    $container = $this->getMock(ContainerInterface::class);
-    $map = array(
-      array('plugin.manager.payment.status', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->paymentStatusManager),
-      array('string_translation', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->stringTranslation),
-    );
-    $container->expects($this->any())
-      ->method('get')
-      ->willReturnMap($map);
+    $plugin_type_manager = $this->prophesize(PluginTypeManagerInterface::class);
+    $plugin_type_manager->getPluginType('payment_status')->willReturn($this->paymentStatusPluginType);
+    $container = $this->prophesize(ContainerInterface::class);
+    $container->get('plugin.plugin_type_manager')->willReturn($plugin_type_manager->reveal());
 
     $configuration = [];
     $plugin_id = $this->randomMachineName();
     $plugin_definition = [];
-    $sut = PaymentStatus::create($container, $configuration, $plugin_id, $plugin_definition);
+    $sut = PaymentStatus::create($container->reveal(), $configuration, $plugin_id, $plugin_definition);
     $this->assertInstanceOf(PaymentStatus::class, $sut);
-  }
-
-  /**
-   * @covers ::getValueOptions
-   */
-  public function testGetValueOptions() {
-    $plugin_id_a = $this->randomMachineName();
-    $plugin_label_a = $this->randomMachineName();
-    $plugin_id_b = $this->randomMachineName();
-    $plugin_label_b = $this->randomMachineName();
-    $plugin_id_c = $this->randomMachineName();
-    $plugin_label_c = $this->randomMachineName();
-
-    $plugin_definitions = [
-      $plugin_id_a => [
-        'label' => $plugin_label_a,
-      ],
-      $plugin_id_b => [
-        'label' => $plugin_label_b,
-      ],
-      $plugin_id_c => [
-        'label' => $plugin_label_c,
-      ],
-    ];
-
-    $this->paymentStatusManager->expects($this->atLeastOnce())
-      ->method('getDefinitions')
-      ->willReturn($plugin_definitions);
-
-    $expected_options = [
-      $plugin_id_a => $plugin_label_a,
-      $plugin_id_b => $plugin_label_b,
-      $plugin_id_c => $plugin_label_c,
-    ];
-
-    $this->assertSame($expected_options, $this->sut->getValueOptions());
   }
 
 }
