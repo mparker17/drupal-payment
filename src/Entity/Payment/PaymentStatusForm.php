@@ -20,6 +20,13 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class PaymentStatusForm extends EntityForm {
 
   /**
+   * The current user account.
+   *
+   * @var \Drupal\Core\Session\AccountInterface
+   */
+  protected $currentUser;
+
+  /**
    * The plugin selector manager.
    *
    * @var \Drupal\plugin\Plugin\Plugin\PluginSelector\PluginSelectorManagerInterface
