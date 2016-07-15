@@ -3,6 +3,8 @@
 namespace Drupal\Tests\payment\Unit\Response;
 
 use Drupal\Core\DependencyInjection\ContainerBuilder;
+use Drupal\Core\GeneratedUrl;
+use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Routing\UrlGeneratorInterface;
 use Drupal\Core\Url;
 use Drupal\payment\Response\Response;
@@ -84,11 +86,14 @@ class ResponseTest extends UnitTestCase {
    * @covers ::getResponse
    */
   function testGetResponseWithoutResponse() {
+    $generated_url = new GeneratedUrl();
+    $generated_url->setGeneratedUrl($this->randomMachineName());
+    $generated_url->addCacheTags(['node:1']);
     $url_generator = $this->getMock(UrlGeneratorInterface::class);
     $url_generator->expects($this->atLeastOnce())
       ->method('generateFromRoute')
       ->with($this->routeName)
-      ->willReturn($this->randomMachineName());
+      ->willReturn($generated_url);
 
     $container = new ContainerBuilder();
     $container->set('url_generator', $url_generator);
@@ -97,7 +102,9 @@ class ResponseTest extends UnitTestCase {
 
     $this->sut = new Response($this->redirectUrl);
 
-    $this->assertInstanceOf(SymfonyResponse::class, $this->sut->getResponse());
+    $response = $this->sut->getResponse();
+    $this->assertInstanceOf(TrustedRedirectResponse::class, $response);
+    $this->assertEquals(['node:1'], $response->getCacheableMetadata()->getCacheTags());
   }
 
 }

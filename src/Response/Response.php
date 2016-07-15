@@ -48,7 +48,11 @@ class Response implements ResponseInterface {
    */
   public function getResponse() {
     if (!$this->response) {
-      $this->response = new TrustedRedirectResponse($this->url->toString());
+      // Ensure that bubbleable metadata is collected and added to the response
+      // object.
+      $url = $this->url->toString(TRUE);
+      $this->response = new TrustedRedirectResponse($url->getGeneratedUrl());
+      $this->response->addCacheableDependency($url);
     }
 
     return $this->response;
