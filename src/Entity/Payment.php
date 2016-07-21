@@ -278,6 +278,11 @@ class Payment extends ContentEntityBase implements PaymentInterface {
    * {@inheritdoc}
    */
   public function setPaymentMethod(PluginPaymentMethodInterface $payment_method) {
+    // The payment method might have been unserialized with an old payment
+    // object, trying to save that as new will result in exceptions. Set the
+    // current object again.
+    $payment_method->setPayment($this);
+
     /** @var \Drupal\plugin\Plugin\Field\FieldType\PluginCollectionItemInterface $field_item */
     $this->get('payment_method')->applyDefaultValue();
     $this->get('payment_method')->appendItem($payment_method);

@@ -173,7 +173,8 @@ class PaymentUnitTest extends KernelTestBase {
   protected function testGetPaymentMethod() {
     $payment_method = Payment::methodManager()->createInstance('payment_basic');
     $this->payment->setPaymentMethod($payment_method);
-    $this->assertTrue(spl_object_hash($this->payment->getPaymentMethod()), spl_object_hash($this->payment));
+    $this->assertEqual(spl_object_hash($this->payment->getPaymentMethod()), spl_object_hash($payment_method));
+    $this->assertEqual(spl_object_hash($this->payment->getPaymentMethod()->getPayment()), spl_object_hash($this->payment));
   }
 
   /**
