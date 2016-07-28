@@ -3,13 +3,14 @@
 namespace Drupal\payment\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Entity\EntityAccessControlHandlerInterface;
 use Drupal\Core\Entity\EntityFormBuilderInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\StringTranslation\TranslationInterface;
-use Drupal\payment\Plugin\Payment\MethodConfiguration\PaymentMethodConfigurationManagerInterface;
+use Drupal\plugin\PluginDefinition\PluginDefinitionInterface;
+use Drupal\plugin\PluginDefinition\PluginLabelDefinitionInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Handles the "add payment method configuration" route.
@@ -17,36 +18,36 @@ use Symfony\Component\HttpFoundation\RequestStack;
 class AddPaymentMethodConfiguration extends ControllerBase {
 
   /**
-   * The payment method configuration plugin manager.
+   * The payment method configuration access control handler.
    *
-   * @var \Drupal\payment\Plugin\Payment\MethodConfiguration\PaymentMethodConfigurationManagerInterface
+   * @var \Drupal\Core\Entity\EntityAccessControlHandlerInterface
    */
-  protected $paymentMethodConfigurationManager;
+  protected $paymentMethodConfigurationAccessControlHandler;
 
   /**
-   * The request stack.
+   * The payment method configuration storage.
    *
-   * @var \Symfony\Component\HttpFoundation\RequestStack
+   * @var \Drupal\Core\Entity\EntityStorageInterface
    */
-  protected $requestStack;
+  protected $paymentMethodConfigurationStorage;
 
   /**
    * Constructs a new instance.
    *
-   * @param \Symfony\Component\HttpFoundation\RequestStack $request_stack
    * @param \Drupal\Core\StringTranslation\TranslationInterface $string_translation
    *   The string translator.
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
-   * @param \Drupal\payment\Plugin\Payment\MethodConfiguration\PaymentMethodConfigurationManagerInterface $payment_method_configuration_manager
    * @param \Drupal\Core\Entity\EntityFormBuilderInterface $entity_form_builder
    * @param \Drupal\Core\Session\AccountInterface $current_user
+   * @param \Drupal\Core\Entity\EntityStorageInterface $payment_method_configuration_storage
+   *   The payment method configuration storage.
+   * @param \Drupal\Core\Entity\EntityAccessControlHandlerInterface $payment_method_configuration_access_control_handler
+   *   The payment method configuration access control handler.
    */
-  public function __construct(RequestStack $request_stack, TranslationInterface $string_translation, EntityTypeManagerInterface $entity_type_manager, PaymentMethodConfigurationManagerInterface $payment_method_configuration_manager, EntityFormBuilderInterface $entity_form_builder, AccountInterface $current_user) {
+  public function __construct(TranslationInterface $string_translation, EntityFormBuilderInterface $entity_form_builder, AccountInterface $current_user, EntityStorageInterface $payment_method_configuration_storage, EntityAccessControlHandlerInterface $payment_method_configuration_access_control_handler) {
     $this->currentUser = $current_user;
-    $this->entityTypeManager = $entity_type_manager;
     $this->entityFormBuilder = $entity_form_builder;
-    $this->paymentMethodConfigurationManager = $payment_method_configuration_manager;
-    $this->requestStack = $request_stack;
+    $this->paymentMethodConfigurationAccessControlHandler = $payment_method_configuration_access_control_handler;
+    $this->paymentMethodConfigurationStorage = $payment_method_configuration_storage;
     $this->stringTranslation = $string_translation;
   }
 
@@ -54,19 +55,22 @@ class AddPaymentMethodConfiguration extends ControllerBase {
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
-    return new static($container->get('request_stack'), $container->get('string_translation'), $container->get('entity_type.manager'), $container->get('plugin.manager.payment.method_configuration'), $container->get('entity.form_builder'), $container->get('current_user'));
+    /** @var \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager */
+    $entity_type_manager = $container->get('entity_type.manager');
+
+    return new static($container->get('string_translation'), $container->get('entity.form_builder'), $container->get('current_user'), $entity_type_manager->getStorage('payment_method_configuration'), $entity_type_manager->getAccessControlHandler('payment_method_configuration'));
   }
 
   /**
    * Displays a payment method configuration add form.
    *
-   * @param string $plugin_id
+   * @param \Drupal\plugin\PluginDefinition\PluginDefinitionInterface $payment_method_configuration_definition
    *
    * @return array
    */
-  public function execute($plugin_id) {
-    $payment_method_configuration = $this->entityTypeManager->getStorage('payment_method_configuration')->create([
-      'pluginId' => $plugin_id,
+  public function execute(PluginDefinitionInterface $payment_method_configuration_definition) {
+    $payment_method_configuration = $this->paymentMethodConfigurationStorage->create([
+      'pluginId' => $payment_method_configuration_definition->getId(),
     ]);
 
     return $this->entityFormBuilder->getForm($payment_method_configuration, 'default');
@@ -75,28 +79,26 @@ class AddPaymentMethodConfiguration extends ControllerBase {
   /**
    * Returns the title for the payment method configuration add form.
    *
-   * @param string $plugin_id
+   * @param \Drupal\plugin\PluginDefinition\PluginLabelDefinitionInterface $payment_method_configuration_definition
    *
    * @return string
    */
-  public function title($plugin_id) {
-    $plugin_definition = $this->paymentMethodConfigurationManager->getDefinition($plugin_id);
-
+  public function title(PluginLabelDefinitionInterface $payment_method_configuration_definition) {
     return $this->t('Add %label payment method configuration', [
-      '%label' => $plugin_definition['label'],
+      '%label' => $payment_method_configuration_definition->getLabel(),
     ]);
   }
 
   /**
    * Checks access to the route.
    *
+   * @param \Drupal\plugin\PluginDefinition\PluginDefinitionInterface $payment_method_configuration_definition
+   *
    * @return \Drupal\Core\Access\AccessResultInterface
    *   The access result.
    */
-  public function access() {
-    $plugin_id = $this->requestStack->getCurrentRequest()->attributes->get('plugin_id');
-
-    return $this->entityTypeManager->getAccessControlHandler('payment_method_configuration')->createAccess($plugin_id, $this->currentUser, [], TRUE);
+  public function access(PluginDefinitionInterface $payment_method_configuration_definition) {
+    return $this->paymentMethodConfigurationAccessControlHandler->createAccess($payment_method_configuration_definition->getId(), $this->currentUser, [], TRUE);
   }
 
 }

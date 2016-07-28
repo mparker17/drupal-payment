@@ -5,18 +5,16 @@ namespace Drupal\Tests\payment\Unit\Controller;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Entity\EntityAccessControlHandlerInterface;
 use Drupal\Core\Entity\EntityFormBuilderInterface;
-use Drupal\Core\Entity\EntityFormInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\payment\Controller\AddPaymentMethodConfiguration;
 use Drupal\payment\Entity\PaymentMethodConfigurationInterface;
-use Drupal\payment\Plugin\Payment\MethodConfiguration\PaymentMethodConfigurationManagerInterface;
+use Drupal\plugin\PluginDefinition\PluginDefinitionInterface;
+use Drupal\plugin\PluginDefinition\PluginLabelDefinitionInterface;
 use Drupal\Tests\UnitTestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * @coversDefaultClass \Drupal\payment\Controller\AddPaymentMethodConfiguration
@@ -35,30 +33,23 @@ class AddPaymentMethodConfigurationTest extends UnitTestCase {
   /**
    * The entity form builder.
    *
-   * @var \Drupal\Core\Entity\EntityFormBuilderInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Entity\EntityFormBuilderInterface|\Prophecy\Prophecy\ObjectProphecy
    */
   protected $entityFormBuilder;
 
   /**
-   * The entity type manager.
+   * The payment method configuration access control handler.
    *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Entity\EntityAccessControlHandlerInterface|\Prophecy\Prophecy\ObjectProphecy
    */
-  protected $entityTypeManager;
+  protected $paymentMethodConfigurationAccessControlHandler;
 
   /**
-   * The payment method configuration plugin manager.
+   * The payment method configuration storage.
    *
-   * @var \Drupal\payment\Plugin\Payment\MethodConfiguration\PaymentMethodConfigurationManagerInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Entity\EntityStorageInterface|\Prophecy\Prophecy\ObjectProphecy
    */
-  protected $paymentMethodConfigurationManager;
-
-  /**
-   * The request stack.
-   *
-   * @var \Symfony\Component\HttpFoundation\RequestStack|\PHPUnit_Framework_MockObject_MockObject
-   */
-  protected $requestStack;
+  protected $paymentMethodConfigurationStorage;
 
   /**
    * The string translator.
@@ -80,19 +71,15 @@ class AddPaymentMethodConfigurationTest extends UnitTestCase {
   protected function setUp() {
     $this->currentUser = $this->getMock(AccountInterface::class);
 
-    $this->entityFormBuilder = $this->getMock(EntityFormBuilderInterface::class);
+    $this->entityFormBuilder = $this->prophesize(EntityFormBuilderInterface::class);
 
-    $this->entityTypeManager = $this->getMock(EntityTypeManagerInterface::class);
+    $this->paymentMethodConfigurationAccessControlHandler = $this->prophesize(EntityAccessControlHandlerInterface::class);
 
-    $this->paymentMethodConfigurationManager = $this->getMock(PaymentMethodConfigurationManagerInterface::class);
-
-    $this->requestStack = $this->getMockBuilder(RequestStack::class)
-      ->disableOriginalConstructor()
-      ->getMock();
+    $this->paymentMethodConfigurationStorage = $this->prophesize(EntityStorageInterface::class);
 
     $this->stringTranslation = $this->getStringTranslationStub();
 
-    $this->sut = new AddPaymentMethodConfiguration($this->requestStack, $this->stringTranslation, $this->entityTypeManager, $this->paymentMethodConfigurationManager, $this->entityFormBuilder, $this->currentUser);
+    $this->sut = new AddPaymentMethodConfiguration($this->stringTranslation, $this->entityFormBuilder->reveal(), $this->currentUser, $this->paymentMethodConfigurationStorage->reveal(), $this->paymentMethodConfigurationAccessControlHandler->reveal());
   }
 
   /**
@@ -100,20 +87,17 @@ class AddPaymentMethodConfigurationTest extends UnitTestCase {
    * @covers ::__construct
    */
   function testCreate() {
-    $container = $this->getMock(ContainerInterface::class);
-    $map = [
-      ['current_user', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->currentUser],
-      ['entity.form_builder', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->entityFormBuilder],
-      ['entity_type.manager', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->entityTypeManager],
-      ['plugin.manager.payment.method_configuration', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->paymentMethodConfigurationManager],
-      ['request_stack', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->requestStack],
-      ['string_translation', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->stringTranslation],
-    ];
-    $container->expects($this->any())
-      ->method('get')
-      ->willReturnMap($map);
+    $entity_type_manager = $this->prophesize(EntityTypeManagerInterface::class);
+    $entity_type_manager->getAccessControlHandler('payment_method_configuration')->willReturn($this->paymentMethodConfigurationAccessControlHandler->reveal());
+    $entity_type_manager->getStorage('payment_method_configuration')->willReturn($this->paymentMethodConfigurationStorage->reveal());
 
-    $sut = AddPaymentMethodConfiguration::create($container);
+    $container = $this->prophesize(ContainerInterface::class);
+    $container->get('current_user')->willReturn($this->currentUser);
+    $container->get('entity.form_builder')->willReturn($this->entityFormBuilder->reveal());
+    $container->get('entity_type.manager')->willReturn($entity_type_manager);
+    $container->get('string_translation')->willReturn($this->stringTranslation);
+
+    $sut = AddPaymentMethodConfiguration::create($container->reveal());
     $this->assertInstanceOf(AddPaymentMethodConfiguration::class, $sut);
   }
 
@@ -121,75 +105,64 @@ class AddPaymentMethodConfigurationTest extends UnitTestCase {
    * @covers ::execute
    */
   public function testExecute() {
-    $plugin_id = $this->randomMachineName();
+    $payment_method_configuration_id = 'foo:bar';
+    $payment_method_configuration_definition = $this->prophesize(PluginDefinitionInterface::class);
+    $payment_method_configuration_definition->getId()->willReturn($payment_method_configuration_id);
 
     $payment_method_configuration = $this->getMock(PaymentMethodConfigurationInterface::class);
 
-    $storage_controller = $this->getMock(EntityStorageInterface::class);
-    $storage_controller->expects($this->once())
-      ->method('create')
+    $this->paymentMethodConfigurationStorage->create([
+      'pluginId' => $payment_method_configuration_id,
+    ])
       ->willReturn($payment_method_configuration);
 
-    $form = $this->getMock(EntityFormInterface::class);
+    $form = [
+      '#type' => 'foo_bar',
+    ];
 
-    $this->entityTypeManager->expects($this->once())
-      ->method('getStorage')
-      ->with('payment_method_configuration')
-      ->willReturn($storage_controller);
-
-    $this->entityFormBuilder->expects($this->once())
-      ->method('getForm')
-      ->with($payment_method_configuration, 'default')
+    $this->entityFormBuilder->getForm($payment_method_configuration, 'default')
       ->willReturn($form);
 
-    $this->sut->execute($plugin_id);
+    $this->assertSame($form, $this->sut->execute($payment_method_configuration_definition->reveal()));
   }
 
   /**
    * @covers ::access
    */
-  public function testAccess() {
-    $plugin_id = $this->randomMachineName();
-    $request = new Request();
-    $request->attributes->set('plugin_id', $plugin_id);
+  public function testAccessWithAllowed() {
+    $payment_method_configuration_id = 'foo:bar';
+    $payment_method_configuration_definition = $this->prophesize(PluginDefinitionInterface::class);
+    $payment_method_configuration_definition->getId()->willReturn($payment_method_configuration_id);
 
-    $this->requestStack->expects($this->atLeastOnce())
-      ->method('getCurrentRequest')
-      ->willReturn($request);
-
-    $access_controller = $this->getMock(EntityAccessControlHandlerInterface::class);
-    $access_controller->expects($this->at(0))
-      ->method('createAccess')
-      ->with($plugin_id, $this->currentUser, [], TRUE)
+    $this->paymentMethodConfigurationAccessControlHandler->createAccess($payment_method_configuration_id, $this->currentUser, [], TRUE)
       ->willReturn(AccessResult::allowed());
-    $access_controller->expects($this->at(1))
-      ->method('createAccess')
-      ->with($plugin_id, $this->currentUser, [], TRUE)
+
+    $this->assertTrue($this->sut->access($payment_method_configuration_definition->reveal())->isAllowed());
+  }
+
+  /**
+   * @covers ::access
+   */
+  public function testAccessWithForbidden() {
+    $payment_method_configuration_id = 'foo:bar';
+    $payment_method_configuration_definition = $this->prophesize(PluginDefinitionInterface::class);
+    $payment_method_configuration_definition->getId()->willReturn($payment_method_configuration_id);
+
+    $this->paymentMethodConfigurationAccessControlHandler->createAccess($payment_method_configuration_id, $this->currentUser, [], TRUE)
       ->willReturn(AccessResult::forbidden());
 
-    $this->entityTypeManager->expects($this->exactly(2))
-      ->method('getAccessControlHandler')
-      ->with('payment_method_configuration')
-      ->willReturn($access_controller);
-
-    $this->assertTrue($this->sut->access($request)->isAllowed());
-    $this->assertFalse($this->sut->access($request)->isAllowed());
+    $this->assertTrue($this->sut->access($payment_method_configuration_definition->reveal())->isForbidden());
   }
 
   /**
    * @covers ::title
    */
   public function testTitle() {
-    $plugin_id = $this->randomMachineName();
+    $payment_method_configuration_label = 'Foo Bar';
+    $payment_method_configuration_definition = $this->prophesize(PluginLabelDefinitionInterface::class);
+    $payment_method_configuration_definition->getLabel()->willReturn($payment_method_configuration_label);
 
-    $this->paymentMethodConfigurationManager->expects($this->atLeastOnce())
-      ->method('getDefinition')
-      ->with($plugin_id)
-      ->willReturn([
-        'label' => $this->randomMachineName(),
-      ]);
-
-    $this->assertInstanceOf(TranslatableMarkup::class, $this->sut->title($plugin_id));
+    $this->assertInstanceOf(TranslatableMarkup::class, $this->sut->title($payment_method_configuration_definition->reveal()));
   }
 
 }

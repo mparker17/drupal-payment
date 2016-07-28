@@ -102,12 +102,17 @@ payment.payment_method_configuration.select:
     _custom_access: '\Drupal\payment\Controller\SelectPaymentMethodConfiguration::access'
 
 payment.payment_method_configuration.add:
-  path: '/admin/config/services/payment/method/configuration-add/{plugin_id}'
+  path: '/admin/config/services/payment/method/configuration-add/{payment_method_configuration_definition}'
   defaults:
     _controller: '\Drupal\payment\Controller\AddPaymentMethodConfiguration::execute'
     _title_callback: '\Drupal\payment\Controller\AddPaymentMethodConfiguration::title'
   requirements:
     _custom_access: '\Drupal\payment\Controller\AddPaymentMethodConfiguration::access'
+  options:
+    parameters:
+      payment_method_configuration_definition:
+        plugin.plugin_definition:
+          plugin_type_id: payment_method_configuration
 
 entity.payment_method_configuration.edit_form:
   path: '/admin/config/services/payment/method/configuration/{payment_method_configuration}'
@@ -188,9 +193,14 @@ payment.payment_type.collection:
     _permission: 'payment.payment_type.administer'
 
 payment.payment_type:
-  path: '/admin/config/services/payment/type/{bundle}'
+  path: '/admin/config/services/payment/type/{payment_method_type_definition}'
   defaults:
     _controller: '\Drupal\payment\Controller\ConfigurePaymentType::execute'
     _title_callback: '\Drupal\payment\Controller\ConfigurePaymentType::title'
   requirements:
     _permission: 'payment.payment_type.administer'
+  options:
+    parameters:
+      payment_method_type_definition:
+        plugin.plugin_definition:
+          plugin_type_id: payment_type

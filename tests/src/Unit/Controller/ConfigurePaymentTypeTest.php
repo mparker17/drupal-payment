@@ -4,10 +4,9 @@ namespace Drupal\Tests\payment\Unit\Controller;
 
 use Drupal\Core\Form\FormBuilderInterface;
 use Drupal\payment\Controller\ConfigurePaymentType;
-use Drupal\payment\Plugin\Payment\Type\PaymentTypeManagerInterface;
+use Drupal\payment\Plugin\Payment\Type\PaymentTypeDefinition;
 use Drupal\Tests\UnitTestCase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * @coversDefaultClass \Drupal\payment\Controller\ConfigurePaymentType
@@ -19,16 +18,9 @@ class ConfigurePaymentTypeTest extends UnitTestCase {
   /**
    * The form builder.
    *
-   * @var \Drupal\Core\Form\FormBuilderInterface|\PHPUnit_Framework_MockObject_MockObject
+   * @var \Drupal\Core\Form\FormBuilderInterface|\Prophecy\Prophecy\ObjectProphecy
    */
   protected $formBuilder;
-
-  /**
-   * The payment type plugin manager.
-   *
-   * @var \Drupal\payment\Plugin\Payment\Type\PaymentTypeManagerInterface|\PHPUnit_Framework_MockObject_MockObject
-   */
-  protected $paymentTypeManager;
 
   /**
    * The string translator.
@@ -48,13 +40,11 @@ class ConfigurePaymentTypeTest extends UnitTestCase {
    * {@inheritdoc}
    */
   protected function setUp() {
-    $this->formBuilder = $this->getMock(FormBuilderInterface::class);
-
-    $this->paymentTypeManager= $this->getMock(PaymentTypeManagerInterface::class);
+    $this->formBuilder = $this->prophesize(FormBuilderInterface::class);
 
     $this->stringTranslation = $this->getStringTranslationStub();
 
-    $this->sut = new ConfigurePaymentType($this->formBuilder, $this->paymentTypeManager, $this->stringTranslation);
+    $this->sut = new ConfigurePaymentType($this->formBuilder->reveal(), $this->stringTranslation);
   }
 
   /**
@@ -62,79 +52,52 @@ class ConfigurePaymentTypeTest extends UnitTestCase {
    * @covers ::__construct
    */
   function testCreate() {
-    $container = $this->getMock(ContainerInterface::class);
-    $map = [
-      ['form_builder', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->formBuilder],
-      ['plugin.manager.payment.type', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->paymentTypeManager],
-      ['string_translation', ContainerInterface::EXCEPTION_ON_INVALID_REFERENCE, $this->stringTranslation],
-    ];
-    $container->expects($this->any())
-      ->method('get')
-      ->willReturnMap($map);
+    $container = $this->prophesize(ContainerInterface::class);
+    $container->get('form_builder')->willReturn($this->formBuilder->reveal());
+    $container->get('string_translation')->willReturn($this->stringTranslation);
 
-    $sut = ConfigurePaymentType::create($container);
+    $sut = ConfigurePaymentType::create($container->reveal());
     $this->assertInstanceOf(ConfigurePaymentType::class, $sut);
   }
 
   /**
    * @covers ::execute
    */
+  public function testExecuteWithoutConfigurationForm() {
+    $payment_type_definition = $this->prophesize(PaymentTypeDefinition::class);
+    $payment_type_definition->getConfigurationFormClass()->willReturn(NULL);
+
+    $build = $this->sut->execute($payment_type_definition->reveal());
+    $this->assertInternalType('array', $build);
+  }
+
+  /**
+   * @covers ::execute
+   */
   public function testExecute() {
-    $bundle_exists = $this->randomMachineName();
-    $bundle_exists_definition = [
-      'configuration_form' => $this->randomMachineName(),
-    ];
-    $bundle_exists_no_form = $this->randomMachineName();
-    $bundle_exists_no_form_definition = [];
-    $bundle_no_exists = $this->randomMachineName();
-    $bundle_no_exists_definition = NULL;
+    $configuration_form_class = $this->randomMachineName();
+    $payment_type_definition = $this->prophesize(PaymentTypeDefinition::class);
+    $payment_type_definition->getConfigurationFormClass()->willReturn($configuration_form_class);
 
     $form_build = [
       '#type' => $this->randomMachineName(),
     ];
-    $this->formBuilder->expects($this->once())
-      ->method('getForm')
-      ->with($bundle_exists_definition['configuration_form'])
+    $this->formBuilder->getForm($configuration_form_class)
       ->willReturn($form_build);
 
-    $map = [
-      [$bundle_exists, FALSE, $bundle_exists_definition],
-      [$bundle_exists_no_form, FALSE, $bundle_exists_no_form_definition],
-      [$bundle_no_exists, FALSE, $bundle_no_exists_definition],
-    ];
-    $this->paymentTypeManager->expects($this->any())
-      ->method('getDefinition')
-      ->willReturnMap($map);
-
-    // Test with a bundle of a plugin with a form.
-    $build = $this->sut->execute($bundle_exists);
+    $build = $this->sut->execute($payment_type_definition->reveal());
     $this->assertSame($form_build, $build);
-
-    // Test with a bundle of a plugin without a form.
-    $build = $this->sut->execute($bundle_exists_no_form);
-    $this->assertInternalType('array', $build);
-
-    // Test with a non-existing bundle.
-    $this->setExpectedException(NotFoundHttpException::class);
-    $this->sut->execute($bundle_no_exists);
   }
 
   /**
    * @covers ::title
    */
   public function testTitle() {
-    $plugin_id = $this->randomMachineName();
     $label = $this->randomMachineName();
-    $definition = [
-      'label' => $label,
-    ];
+    $payment_type_definition = $this->prophesize(PaymentTypeDefinition::class);
+    $payment_type_definition->getLabel()->willReturn($label);
 
-    $this->paymentTypeManager->expects($this->once())
-      ->method('getDefinition')
-      ->with($plugin_id)
-      ->willReturn($definition);
-
-    $this->assertSame($label, $this->sut->title($plugin_id));
+    $this->assertSame($label, $this->sut->title($payment_type_definition->reveal()));
   }
 
 }

@@ -1,7 +1,7 @@
 payment_type:
   label: Payment type
   plugin_manager_service_id: plugin.manager.payment.type
-  plugin_definition_decorator_class: \Drupal\plugin\PluginDefinition\ArrayPluginDefinitionDecorator
+  plugin_definition_decorator_class: \Drupal\payment\Plugin\Payment\Type\PaymentTypeDefinition
   operations_provider_class: \Drupal\payment\Plugin\Payment\Type\PaymentTypeOperationsProvider
 payment_line_item:
   label: Payment line item
