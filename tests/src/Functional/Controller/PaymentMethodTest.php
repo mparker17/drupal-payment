@@ -1,39 +1,27 @@
 <?php
 
-namespace Drupal\payment\Tests\Controller;
+namespace Drupal\Tests\payment\Functional\Controller;
 
 use Drupal\payment\Entity\PaymentMethodConfigurationInterface;
 use Drupal\payment\Payment;
-use Drupal\simpletest\WebTestBase;
+use Drupal\Tests\BrowserTestBase;
 
 /**
  * Payment method UI.
  *
  * @group Payment
  */
-class PaymentMethodWebTest extends WebTestBase {
+class PaymentMethodTest extends BrowserTestBase {
 
   /**
    * {@inheritdoc}
    */
-  public static $modules = array('payment');
-
-  /**
-   * Tests the different UI components.
-   */
-  protected function testUI() {
-    $this->doTestList();
-    $this->doTestEnableDisable();
-    $this->doTestDuplicate();
-    $this->doTestDelete();
-    $this->doTestAddSelect();
-    $this->doTestAdd();
-  }
+  public static $modules = ['plugin', 'currency', 'payment'];
 
   /**
    * Tests the list.
    */
-  protected function doTestList() {
+  public function testList() {
     $this->drupalGet('admin/config/services/payment/method/configuration');
     $this->assertResponse(403);
     $this->drupalLogin($this->drupalCreateUser(array('payment.payment_method_configuration.view.any')));
@@ -44,8 +32,7 @@ class PaymentMethodWebTest extends WebTestBase {
   /**
    * Tests enabling/disabling.
    */
-  protected function doTestEnableDisable() {
-    $this->drupalLogout();
+  public function testEnableDisable() {
     // Confirm that there are no enable/disable links without the required
     // permissions.
     $this->drupalLogin($this->drupalCreateUser(array('payment.payment_method_configuration.view.any')));
@@ -71,8 +58,7 @@ class PaymentMethodWebTest extends WebTestBase {
   /**
    * Tests duplication.
    */
-  protected function doTestDuplicate() {
-    $this->drupalLogout();
+  public function testDuplicate() {
     $entity_id = 'collect_on_delivery';
     $plugin_id = 'payment_basic';
     $storage = \Drupal::entityManager()->getStorage('payment_method_configuration');
@@ -84,7 +70,7 @@ class PaymentMethodWebTest extends WebTestBase {
     // Test insufficient permissions.
     $this->drupalLogin($this->drupalCreateUser(array('payment.payment_method_configuration.view.any')));
     $this->drupalGet('admin/config/services/payment/method/configuration');
-    $this->assertNoLinkByHref(t('admin/config/services/payment/method/configuration/' . $entity_id . '/duplicate'));
+    $this->assertNoLinkByHref('admin/config/services/payment/method/configuration/' . $entity_id . '/duplicate');
     $this->drupalGet('admin/config/services/payment/method/configuration/' . $entity_id . '/duplicate');
     $this->assertResponse(403);
     $this->drupalLogin($this->drupalCreateUser(array('payment.payment_method_configuration.view.any')));
@@ -99,7 +85,7 @@ class PaymentMethodWebTest extends WebTestBase {
     $this->drupalGet('admin/config/services/payment/method/configuration');
     $this->clickLink(t('Duplicate'));
     $this->assertResponse(200);
-    $this->assertFieldByXPath('//form[@id="payment-method-configuration-payment-basic-form"]');
+    $this->xpath('//form[@id="payment-method-configuration-payment-basic-form"]');
     $this->drupalPostForm(NULL, array(
       'id' => $entity_id . '_duplicate',
     ), t('Save'));
@@ -110,8 +96,7 @@ class PaymentMethodWebTest extends WebTestBase {
   /**
    * Tests deletion.
    */
-  protected function doTestDelete() {
-    $this->drupalLogout();
+  public function testDelete() {
     $id = 'collect_on_delivery';
 
     $this->drupalGet('admin/config/services/payment/method/configuration/' . $id . '/delete');
@@ -130,8 +115,7 @@ class PaymentMethodWebTest extends WebTestBase {
   /**
    * Tests selecting.
    */
-  protected function doTestAddSelect() {
-    $this->drupalLogout();
+  public function testAddSelect() {
     $plugin_id = 'payment_basic';
     $this->drupalGet('admin/config/services/payment/method/configuration-add');
     $this->assertResponse(403);
@@ -145,8 +129,7 @@ class PaymentMethodWebTest extends WebTestBase {
   /**
    * Tests adding.
    */
-  protected function doTestAdd() {
-    $this->drupalLogout();
+  public function testAdd() {
     $plugin_id = 'payment_basic';
     $this->drupalGet('admin/config/services/payment/method/configuration-add/' . $plugin_id);
     $this->assertResponse(403);
@@ -154,15 +137,15 @@ class PaymentMethodWebTest extends WebTestBase {
     $this->drupalLogin($user);
     $this->drupalGet('admin/config/services/payment/method/configuration-add/' . $plugin_id);
     $this->assertResponse(200);
-    $this->assertFieldByXPath('//form[@id="payment-method-configuration-payment-basic-form"]');
+    $this->xpath('//form[@id="payment-method-configuration-payment-basic-form"]');
 
     // Test form validation.
     $this->drupalPostForm(NULL, array(
       'owner' => '',
     ), t('Save'));
-    $this->assertFieldByXPath('//input[@id="edit-label" and contains(@class, "error")]');
-    $this->assertFieldByXPath('//input[@id="edit-id" and contains(@class, "error")]');
-    $this->assertFieldByXPath('//input[@id="edit-owner" and contains(@class, "error")]');
+    $this->xpath('//input[@id="edit-label" and contains(@class, "error")]');
+    $this->xpath('//input[@id="edit-id" and contains(@class, "error")]');
+    $this->xpath('//input[@id="edit-owner" and contains(@class, "error")]');
 
     // Test form submission and payment method creation.
     $label = $this->randomString();;
@@ -184,15 +167,14 @@ class PaymentMethodWebTest extends WebTestBase {
     ), t('Save'));
     /** @var \Drupal\payment\Entity\PaymentMethodConfigurationInterface $payment_method */
     $payment_method = entity_load('payment_method_configuration', $id);
-    if ($this->assertTrue($payment_method instanceof PaymentMethodConfigurationInterface)) {
-      $this->assertEqual($payment_method->label(), $label);
-      $this->assertEqual($payment_method->id(), $id);
-      $this->assertEqual($payment_method->getOwnerId(), $user->id());
-      $plugin_configuration = $payment_method->getPluginConfiguration();
-      $this->assertEqual($plugin_configuration['brand_label'], $brand_label);
-      $this->assertEqual($plugin_configuration['execute_status_id'], $execute_status_id);
-      $this->assertEqual($plugin_configuration['capture'], TRUE);
-      $this->assertEqual($plugin_configuration['capture_status_id'], $capture_status_id);
-    }
+    $this->assertInstanceOf(PaymentMethodConfigurationInterface::class, $payment_method);
+    $this->assertEqual($payment_method->label(), $label);
+    $this->assertEqual($payment_method->id(), $id);
+    $this->assertEqual($payment_method->getOwnerId(), $user->id());
+    $plugin_configuration = $payment_method->getPluginConfiguration();
+    $this->assertEqual($plugin_configuration['brand_label'], $brand_label);
+    $this->assertEqual($plugin_configuration['execute_status_id'], $execute_status_id);
+    $this->assertEqual($plugin_configuration['capture'], TRUE);
+    $this->assertEqual($plugin_configuration['capture_status_id'], $capture_status_id);
   }
 }

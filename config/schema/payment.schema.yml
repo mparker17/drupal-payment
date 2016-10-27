@@ -105,3 +105,9 @@ plugin.plugin_configuration.payment_status.payment_base:
     name:
       label: Created
       type: integer
+
+views.filter.payment_method:
+  type: views.filter.in_operator
+
+views.filter.payment_status:
+  type: views.filter.in_operator

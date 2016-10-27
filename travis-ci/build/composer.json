@@ -3,10 +3,11 @@
     "composer/installers": "~1.0.23",
     "cweagans/composer-patches": "~1.0",
     "drupal-composer/drupal-scaffold": "~2.0",
-    "drupal/core": "~8.1",
+    "drupal/core": "~8.2",
     "drupal/payment": "*",
     "drush/drush": "~8.1 || >= 8.1.2",
-    "phpunit/phpunit": "~4.8"
+    "phpunit/phpunit": "~4.8",
+    "behat/mink-goutte-driver": "~1.2"
   },
   "minimum-stability": "dev",
   "prefer-stable": true,
@@ -27,7 +28,8 @@
     },
     "patches": {
       "drupal/core": {
-        "https://www.drupal.org/node/2729325": "https://www.drupal.org/files/issues/drupal_2729325_8.1.x.patch"
+        "https://www.drupal.org/node/2820952": "https://www.drupal.org/files/issues/drupal_2820952_8.patch",
+        "https://www.drupal.org/node/2822564": "https://www.drupal.org/files/issues/drupal_2822564_2.patch"
       }
     }
   },

@@ -4,6 +4,7 @@ status: true
 dependencies:
   module:
     - payment
+    - plugin
     - user
 id: payments
 label: Payments
@@ -23,7 +24,7 @@ display:
       access:
         type: perm
         options:
-          perm: 'payment.payment.view.any'
+          perm: payment.payment.view.any
       cache:
         type: none
         options: {  }
@@ -741,7 +742,9 @@ display:
         - user.permissions
       cacheable: false
       max-age: 0
-      tags: {  }
+      tags:
+        - payment_method
+        - payment_status
   page_1:
     display_plugin: page
     id: page_1
@@ -771,7 +774,9 @@ display:
         - user.permissions
       cacheable: false
       max-age: 0
-      tags: {  }
+      tags:
+        - payment_method
+        - payment_status
   page_2:
     display_plugin: page
     id: page_2
