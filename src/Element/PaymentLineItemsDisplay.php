@@ -126,24 +126,26 @@ class PaymentLineItemsDisplay extends FormElement implements ContainerFactoryPlu
 
     /** @var \Drupal\currency\Entity\CurrencyInterface $payment_line_items_currency */
     $payment_line_items_currency = $this->currencyStorage->load($payment_line_items->getCurrencyCode());
-    $element['table']['payment_total'] = array(
-      '#attributes' => array(
-        'class' => array('payment-amount'),
-      ),
-      'label' => array(
+    if ($payment_line_items_currency) {
+      $element['table']['payment_total'] = array(
         '#attributes' => array(
-          'class' => array('payment-amount-label'),
-          'colspan' => 3,
+          'class' => array('payment-amount'),
         ),
-        '#markup' => $this->t('Total amount'),
-      ),
-      'total' => array(
-        '#attributes' => array(
-          'class' => array('payment-amount-total'),
+        'label' => array(
+          '#attributes' => array(
+            'class' => array('payment-amount-label'),
+            'colspan' => 3,
+          ),
+          '#markup' => $this->t('Total amount'),
         ),
-        '#markup' => $payment_line_items_currency->formatAmount($payment_line_items->getAmount()),
-      ),
-    );
+        'total' => array(
+          '#attributes' => array(
+            'class' => array('payment-amount-total'),
+          ),
+          '#markup' => $payment_line_items_currency->formatAmount($payment_line_items->getAmount()),
+        ),
+      );
+    }
 
     return $element;
   }
